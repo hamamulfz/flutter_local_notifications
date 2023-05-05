@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 // ignore: unnecessary_import
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/cupertino.dart';
@@ -14,10 +15,13 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as image;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 int id = 0;
+
+String dtList = '';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -63,8 +67,14 @@ const String darwinNotificationCategoryText = 'textCategory';
 /// Defines a iOS/MacOS notification category for plain actions.
 const String darwinNotificationCategoryPlain = 'plainCategory';
 
+bool notificationTappedBackground = false;
+
 @pragma('vm:entry-point')
-void notificationTapBackground(NotificationResponse notificationResponse) {
+Future<void> notificationTapBackground(
+    NotificationResponse notificationResponse) async {
+  DartPluginRegistrant.ensureInitialized();
+  final sharedPreferences = await SharedPreferences.getInstance();
+  await sharedPreferences.setBool('notificationTapBackground', true);
   // ignore: avoid_print
   print('notification(${notificationResponse.id}) action tapped: '
       '${notificationResponse.actionId} with'
@@ -84,7 +94,17 @@ void notificationTapBackground(NotificationResponse notificationResponse) {
 Future<void> main() async {
   // needed if you intend to initialize in the `main` function
   WidgetsFlutterBinding.ensureInitialized();
-
+  final sharedPreferences = await SharedPreferences.getInstance();
+  final mainTime = sharedPreferences.getString('mainTime');
+  final dt = DateTime.now().toIso8601String();
+  notificationTappedBackground =
+      sharedPreferences.getBool('notificationTapBackground') ?? false;
+  if (mainTime == null) {
+    await sharedPreferences.setString('mainTime', dt);
+  } else {
+    await sharedPreferences.setString('mainTime', '$mainTime, $dt');
+  }
+  dtList = sharedPreferences.getString('mainTime') ?? '';
   await _configureLocalTimeZone();
 
   final NotificationAppLaunchDetails? notificationAppLaunchDetails = !kIsWeb &&
@@ -368,6 +388,8 @@ class _HomePageState extends State<HomePage> {
             child: Center(
               child: Column(
                 children: <Widget>[
+                  Text('Tapped background $notificationTappedBackground'),
+                  Text('Time $dtList'),
                   const Padding(
                     padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
                     child:
